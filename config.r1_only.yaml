@@ -1,0 +1,26 @@
+seed: 42
+batch_size: 128
+latent_dim: 128
+image_size: 64
+image_channels: 3
+
+epochs: 50
+lr_g: 0.0002
+lr_d: 0.0002
+beta1: 0.5
+beta2: 0.999
+
+log_interval: 100
+sample_grid_size: 9
+
+# Research flags
+spectral_norm: false # Miyato et al. 2018 (SN-GAN)
+r1_gamma: 10.0 # Mescheder et al. 2018, R1 gradient penalty; 0 disables, ~10 when enabled
+r1_interval: 16 # lazy regularization: apply R1 every N discriminator steps
+
+precision: "32" # set to "16-mixed" on CUDA GPUs (e.g. the 4060ti) for speed
+
+kaggle_dataset: "spandan2/cats-faces-64x64-for-generative-models"
+data_dir: data
+save_path: models/r1_only
+output_dir: outputs
