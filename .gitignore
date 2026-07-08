@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+# VOGAN: downloaded dataset cache, run outputs, local venv
+outputs/
+.venv/
+
 # Workspace
 *.code-workspace
 
