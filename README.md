@@ -12,6 +12,7 @@ gan_module.py   - LitGAN: the Lightning training loop (manual optimization)
 train.py        - entrypoint: python train.py [--config path/to/config.yaml]
 util.py         - seeding, run-folder + plotting helpers
 make_progress_gif.py - stitches a run's per-epoch samples into assets/training_progress.gif
+make_comparison.py    - side-by-side first vs. last epoch sample, for assets/*_comparison.png
 ```
 
 ### Setup
@@ -115,6 +116,10 @@ A few classic GAN training pitfalls came up while building this, worth rememberi
 50 epochs on the 4060ti box, ~33 minutes, baseline config (`spectral_norm` and `r1_gamma` both off). Same fixed noise vector sampled after every epoch:
 
 ![Training progress](assets/training_progress.gif)
+
+Start vs. end, side by side:
+
+![Epoch 000 vs epoch 049](assets/baseline_comparison.png)
 
 Final epoch losses: `g_loss` 8.03, `d_loss` 0.187 (started at 6.36 / 0.355 respectively). The discriminator loss trending down while generator loss trends up across the run is the classic sign of the discriminator winning; worth revisiting with `r1_gamma` or `spectral_norm` turned on for a steadier balance.
 
