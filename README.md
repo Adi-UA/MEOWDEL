@@ -11,6 +11,7 @@ model.py        - Generator and Discriminator (DCGAN-style, 64x64 RGB)
 gan_module.py   - LitGAN: the Lightning training loop (manual optimization)
 train.py        - entrypoint: python train.py [--config path/to/config.yaml]
 util.py         - seeding, run-folder + plotting helpers
+make_progress_gif.py - stitches a run's per-epoch samples into assets/training_progress.gif
 ```
 
 ### Setup
@@ -37,6 +38,20 @@ Then, on either machine:
 ```
 pip install -r requirements.txt
 ```
+
+`pip install torch` alone pulls the CPU-only build on Windows. `requirements.txt` will satisfy itself with that CPU wheel silently, no error, so check for CUDA after installing:
+
+```
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+If that prints `False` on a machine with an NVIDIA GPU, force-reinstall from the CUDA-specific index (match the `cuXXX` tag to your driver's supported CUDA version, shown by `nvidia-smi`):
+
+```
+pip install --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu132
+```
+
+`--force-reinstall` is required: pip sees a `torch` package already satisfying the version constraint and skips it otherwise, even though it's the wrong build.
 
 You'll need Kaggle API credentials so `kagglehub` can download the dataset. Either:
 - place a `kaggle.json` (with `username` and `key`) at `~/.kaggle/kaggle.json` (`C:\Users\<you>\.kaggle\kaggle.json` on Windows), or
@@ -69,7 +84,7 @@ outputs/<timestamp>/
   events.out.tfevents.*   - TensorBoard logs (`tensorboard --logdir outputs`)
 ```
 
-Final generator/discriminator weights are also saved to `models/generator.pth` and `models/discriminator.pth`.
+Final generator/discriminator weights are also saved to `save_path` from the config (e.g. `models/baseline/generator.pth`), one subfolder per experiment so re-running a different config doesn't overwrite an earlier one's weights.
 
 ### Research flags (`config.yaml`)
 
@@ -97,4 +112,22 @@ A few classic GAN training pitfalls came up while building this, worth rememberi
 
 ### Results
 
-To be filled in after a full training run (the 4060ti box, 50+ epochs).
+50 epochs on the 4060ti box, ~33 minutes, baseline config (`spectral_norm` and `r1_gamma` both off). Same fixed noise vector sampled after every epoch:
+
+![Training progress](assets/training_progress.gif)
+
+Final epoch losses: `g_loss` 8.03, `d_loss` 0.187 (started at 6.36 / 0.355 respectively). The discriminator loss trending down while generator loss trends up across the run is the classic sign of the discriminator winning; worth revisiting with `r1_gamma` or `spectral_norm` turned on for a steadier balance.
+
+![Baseline loss curve](assets/baseline_loss_curve.png)
+
+Regenerate the GIF from any run's saved samples with:
+
+```
+python make_progress_gif.py outputs/<timestamp>
+```
+
+**Next experiment**: `config.spectral_r1.yaml` turns on both `spectral_norm` and `r1_gamma: 10.0` together (neither was run past a 1-epoch smoke test before), aimed at the discriminator-winning pattern above. Weights save to `models/spectral_r1/` so they don't collide with the baseline.
+
+```
+python train.py --config config.spectral_r1.yaml
+```

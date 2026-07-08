@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import kagglehub
@@ -51,6 +52,15 @@ def get_dataloader(config):
 
     dataset = FlatImageDataset(dataset_root, transform=transform)
 
+    cpu_count = os.cpu_count() or 1
+    num_workers = max(1, round(cpu_count * 0.6 / 2) * 2)
+
     return DataLoader(
-        dataset, batch_size=config["batch_size"], shuffle=True, drop_last=True
+        dataset,
+        batch_size=config["batch_size"],
+        shuffle=True,
+        drop_last=True,
+        num_workers=num_workers,
+        persistent_workers=True,
+        pin_memory=True,
     )

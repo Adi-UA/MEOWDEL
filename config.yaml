@@ -22,5 +22,5 @@ precision: "32" # set to "16-mixed" on CUDA GPUs (e.g. the 4060ti) for speed
 
 kaggle_dataset: "spandan2/cats-faces-64x64-for-generative-models"
 data_dir: data
-save_path: models
+save_path: models/baseline
 output_dir: outputs

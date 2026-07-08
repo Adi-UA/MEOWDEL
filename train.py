@@ -3,6 +3,7 @@ import csv
 from pathlib import Path
 
 import lightning as L
+import torch
 import yaml
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger
@@ -19,6 +20,8 @@ if __name__ == "__main__":
 
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
+
+    torch.set_float32_matmul_precision("high")
 
     seed_everything(config["seed"])
 
