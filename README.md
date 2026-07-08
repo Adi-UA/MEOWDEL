@@ -4,9 +4,9 @@
 
 A GAN, built from scratch in PyTorch + PyTorch Lightning, learning to generate cat faces over 50 epochs:
 
-![Training progress: baseline vs R1-only](assets/training_progress.gif)
+![Training progress: baseline vs spectral norm vs R1 penalty](assets/training_progress.gif)
 
-Trained on the [Kaggle "Cats faces 64x64" dataset](https://www.kaggle.com/datasets/spandan2/cats-faces-64x64-for-generative-models). See [Results](#results) for the full writeup, including a run that mode-collapsed and why.
+Trained on the [Kaggle "Cats faces 64x64" dataset](https://www.kaggle.com/datasets/spandan2/cats-faces-64x64-for-generative-models). See [Results](#results) for the full writeup, including a first attempt that mode-collapsed and how it was fixed.
 
 ### Layout
 
@@ -123,28 +123,28 @@ Two optional techniques from GAN research papers, both off by default. Short tec
 
 | | Baseline (`config.yaml`) | Spectral norm (`config.spectral_only.yaml`) | R1 penalty (`config.r1_only.yaml`) |
 |---|---|---|---|
-| Final `g_loss` / `d_loss` | 8.03 / 0.187 | collapsed, not meaningful | 0.77 / 1.35 |
-| Outcome | discriminator winning, but recognizable, varied cats | **mode collapse by epoch 0**, same output regardless of noise | best of the three: balanced losses, varied, recognizable cats |
+| Final `g_loss` / `d_loss` | 8.03 / 0.187 | 0.997 / 1.214 | 0.77 / 1.35 |
+| Outcome | discriminator winning, but recognizable, varied cats | recognizable, varied cats, though a bit less sharp/diverse than the other two | balanced losses, varied, recognizable cats |
+
+All three are broadly comparable on results, none collapsed or clearly "won" by a wide margin, spectral norm just trails the other two a bit.
 
 Epoch 0 vs. final, side by side:
 
-![Baseline vs R1-only, epoch 0 vs final](assets/comparison.png)
+![Baseline vs Spectral norm vs R1-only, epoch 0 vs final](assets/comparison.png)
 
 Loss curves:
 
-| Baseline | R1-only |
-|---|---|
-| ![Baseline loss curve](assets/baseline_loss_curve.png) | ![R1-only loss curve](assets/r1_only_loss_curve.png) |
+| Baseline | Spectral norm | R1-only |
+|---|---|---|
+| ![Baseline loss curve](assets/baseline_loss_curve.png) | ![Spectral norm loss curve](assets/spectral_only_loss_curve.png) | ![R1-only loss curve](assets/r1_only_loss_curve.png) |
 
-**Why spectral norm collapsed**: turning it on drops BatchNorm from the discriminator (see Research flags above), and the run used the same hyperparameters the [SN-GAN paper](https://arxiv.org/abs/1802.05957) itself validated (`α=0.0002, β1=0.5, β2=0.999, n_dis=1`, one of its six tested settings), so this wasn't a case of obviously wrong settings. Most likely cause: this discriminator is shallower than the paper's (4 conv layers vs. their 8), and without BatchNorm's activation re-centering to fall back on, it destabilized almost immediately. [Xiang & Li 2017](https://ar5iv.labs.arxiv.org/html/1704.03971) found BatchNorm-equipped discriminators tolerate roughly 5x higher learning rates than BatchNorm-free ones, so `config.spectral_only.yaml` now halves `lr_d` to `0.0001` to test that theory, rerun in progress.
-
-**Why R1 alone won**: it doesn't require dropping BatchNorm. It penalizes the discriminator's gradient near real images directly, which targets the same "discriminator gets too confident too fast" failure the baseline showed, without the BatchNorm tradeoff spectral norm forces.
+**Spectral norm's history here**: the first attempt (same architecture, same hyperparameters as the [SN-GAN paper's](https://arxiv.org/abs/1802.05957) own tested setup) mode-collapsed by epoch 0. The working theory was that dropping BatchNorm (which spectral norm requires here, see Research flags above) left the discriminator too unstable at the original learning rate, per [Xiang & Li 2017's](https://ar5iv.labs.arxiv.org/html/1704.03971) finding that BatchNorm-equipped discriminators tolerate higher learning rates than BatchNorm-free ones. Halving `lr_d` to `0.0001` avoided the collapse this run. That's one data point, not proof the theory's right, but it's consistent with it.
 
 Regenerate these visuals from any set of runs:
 
 ```
-python make_progress_gif.py outputs/<run1> outputs/<run2> --labels "Name 1" "Name 2" --output assets/training_progress.gif
-python make_comparison.py outputs/<run1> outputs/<run2> --labels "Name 1" "Name 2" --output assets/comparison.png
+python make_progress_gif.py outputs/<run1> outputs/<run2> outputs/<run3> --labels "Name 1" "Name 2" "Name 3" --output assets/training_progress.gif
+python make_comparison.py outputs/<run1> outputs/<run2> outputs/<run3> --labels "Name 1" "Name 2" "Name 3" --output assets/comparison.png
 ```
 
 ### Learnings
@@ -153,6 +153,6 @@ A few classic GAN training pitfalls came up while building this, worth rememberi
 
 - **Match the generator's output range to how you normalize the data.** If real images are normalized to `[-1, 1]`, the generator's last layer needs a `Tanh` to match. Otherwise the discriminator can win by checking whether pixel values fall in the expected range, without ever learning real structure.
 - **Never inject noise directly into a hard 0/1 label.** It can push the label outside `[0, 1]`, which corrupts `BCEWithLogitsLoss` (a giveaway is the loss going negative, which is mathematically impossible for a valid target). If you want to fight discriminator overconfidence, use a fixed offset (e.g. real target `0.9`) or a principled method like the R1 gradient penalty below, not random noise on the target.
-- **BatchNorm isn't optional in a from-scratch GAN.** Without it, small differences in how fast the generator and discriminator learn can compound across layers and epochs until one saturates the other and training collapses. Confirmed the hard way in Results above: dropping it for spectral norm collapsed the model by epoch 0.
+- **BatchNorm isn't optional to just drop without a second thought.** The first spectral norm run (which requires dropping BatchNorm here, see Research flags below) mode-collapsed by epoch 0 at the same learning rate the baseline used fine. Halving the discriminator's learning rate fixed it, see Results below, small differences in how fast the generator and discriminator learn can compound until one saturates the other.
 - **Downsample with strided convolutions, not pooling.** Pooling throws away spatial gradient information the discriminator needs.
 - **`.detach()` matters.** Feeding the generator's output into the discriminator's own training step without detaching it wastes memory and compute building gradients into the generator that get discarded immediately after.
